@@ -1,0 +1,197 @@
+# ─────────────────────────────────────────────
+#  Job Application Agent — Configuration File
+# ─────────────────────────────────────────────
+
+# Platform toggles — set to false to skip a platform
+platforms:
+  linkedin: true
+  indeed: true
+  naukri: true
+
+# Daily application limit per platform
+daily_limit: 20
+
+# Date posted filter:
+#   "24h"   → Past 24 hours (1 day)
+#   "week"  → Past 7 days (1 week) [Default]
+#   "all"   → Any time
+date_posted: "week"
+
+# Experience level filter:
+#   "entry" → Internships, Entry level, 0-1 YOE / Freshers only [Default]
+#   "all"   → Any experience
+experience_level: "entry"
+
+# Paid jobs filter — skips unpaid/free internships
+paid_only: true
+
+# Strict tech domain matching — skips non-tech roles (CA, Sales, HR, etc.)
+require_tech_domain_match: true
+
+# Location filter:
+location: "India"
+
+# Words that indicate senior, unpaid, or completely irrelevant non-tech roles to skip automatically
+exclude_keywords:
+  # Senior / High experience
+  - senior
+  - "sr."
+  - "sr "
+  - lead
+  - principal
+  - staff
+  - manager
+  - architect
+  - director
+  - "vp "
+  - head
+  - "3+ years"
+  - "4+ years"
+  - "5+ years"
+  - "3+ yrs"
+  - "4+ yrs"
+  - "5+ yrs"
+  - "2+ years"
+
+  # Unpaid / Free internships
+  - unpaid
+  - "no stipend"
+  - "without stipend"
+  - "zero stipend"
+  - "0 stipend"
+  - "un-paid"
+  - "free internship"
+  - "performance based only"
+
+  # CA / Finance / Accounting
+  - articleship
+  - "chartered accountant"
+  - "ca intern"
+  - "audit"
+  - "accounting"
+  - "accountant"
+  - "taxation"
+  - "tax intern"
+  - "finance intern"
+
+  # Non-tech / Sales / Telecalling / HR / BPO / Fieldwork
+  - "fieldwork"
+  - "telecaller"
+  - "telecalling"
+  - "bpo"
+  - "call center"
+  - "telesales"
+  - "sales executive"
+  - "bde"
+  - "business development executive"
+  - "recruiter"
+  - "hr intern"
+  - "human resources"
+  - "graphic design"
+  - "content writer"
+  - "copywriter"
+  - "video editor"
+  - "social media manager"
+
+# ─────────────────────────────────────────────
+#  Resume → Job Role Mapping (Tech Only)
+# ─────────────────────────────────────────────
+roles:
+  - name: Backend Developer
+    resume: resume_backend.pdf
+    keywords:
+      - Backend Developer Intern
+      - Junior Backend Developer
+      - Python Developer Intern
+      - Junior Software Engineer
+      - Software Engineer Intern
+      - Software Engineer Fresher
+      - Backend Developer Fresher
+      - Entry Level Software Engineer
+      - Junior Python Developer
+      - Node.js Developer Intern
+    match_keywords:
+      - backend
+      - software engineer
+      - python
+      - node
+      - nodejs
+      - django
+      - flask
+      - fastapi
+      - api developer
+      - full stack
+      - fullstack
+      - sde
+      - software developer
+      - web developer
+      - golang
+      - java developer
+
+  - name: AI/ML Engineer
+    resume: resume_aiml.pdf
+    keywords:
+      - Machine Learning Intern
+      - AI Intern
+      - Junior Machine Learning Engineer
+      - AI ML Intern
+      - Junior AI Engineer
+      - Data Science Intern
+      - Deep Learning Intern
+      - AI Engineer Fresher
+      - MLOps Intern
+    match_keywords:
+      - machine learning
+      - ml engineer
+      - ai engineer
+      - deep learning
+      - nlp
+      - computer vision
+      - artificial intelligence
+      - mlops
+      - llm
+      - generative ai
+      - pytorch
+      - tensorflow
+      - neural network
+      - prompt engineer
+
+  - name: Data Scientist / Data Analyst
+    resume: resume_dsda.pdf
+    keywords:
+      - Data Analyst Intern
+      - Junior Data Analyst
+      - Data Science Intern
+      - Junior Data Scientist
+      - Business Analyst Intern
+      - Junior Business Analyst
+      - Data Analyst Fresher
+      - SQL Analyst Intern
+      - Analytics Intern
+    match_keywords:
+      - data scientist
+      - data analyst
+      - business analyst
+      - analytics
+      - bi developer
+      - tableau
+      - power bi
+      - sql analyst
+      - data engineering
+      - data engineer
+
+# ─────────────────────────────────────────────
+#  Browser settings
+# ─────────────────────────────────────────────
+browser:
+  headless: false          # Set true to run invisible in background
+  slow_mo_ms: 100          # Milliseconds between actions (human-like speed)
+  timeout_ms: 60000        # Page load timeout
+
+# ─────────────────────────────────────────────
+#  Anti-detection delays (seconds)
+# ─────────────────────────────────────────────
+delays:
+  between_applications: 5   # Wait between each job application
+  between_platforms: 30     # Wait when switching platforms
+  after_login: 3            # Wait after logging in

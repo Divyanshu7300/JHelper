@@ -1,0 +1,65 @@
+# Environment & Credentials (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+
+# Authentication Sessions & Storage States (NEVER COMMIT)
+sessions/
+*.session.json
+profiles/
+
+# User Personal Data & Q&A Memory (NEVER COMMIT)
+memory.json
+
+# Resumes (Personal PDFs)
+resumes/*
+!resumes/.gitkeep
+*.pdf
+
+# Databases & Application Logs
+*.db
+*.sqlite
+*.sqlite3
+applications.csv
+*.csv
+*.log
+
+# Python Virtual Environments & Bytecode
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Operating System & IDE Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
