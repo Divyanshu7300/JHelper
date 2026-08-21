@@ -1,18 +1,52 @@
 # 🤖 JHelp — Automated Job Application Agent
 
 Autonomous job application assistant for **LinkedIn**, **Indeed**, and **Naukri**.
-Automatically routes the right resume based on job role keywords, bypasses bot detection with human-like interactions, solves recruiter questionnaires with a persistent memory engine, and tracks all applications in a local SQLite database.
+Automatically routes the right resume based on job role keywords, bypasses bot detection with human-like interactions, solves recruiter questionnaires with a persistent memory engine, supports multi-page company ATS portals, and allows **100% remote operation via Telegram**!
 
 ---
 
 ## 🎯 Features
 
-- **Multi-Platform Automation**: Supports LinkedIn Easy Apply, Indeed Apply, Naukri Direct Apply, Naukri Recruiter Chatbot, and external company ATS portals (Workday, Greenhouse, Lever, etc.).
+- **📱 Remote Operation via Telegram**: Control and trigger the agent from anywhere via Telegram chat! Receive live application notifications and answer custom form questions directly from your phone.
+- **Multi-Platform Automation**: Supports LinkedIn Easy Apply, Indeed Apply, Naukri Direct Apply, Naukri Recruiter Chatbot, and multi-step external company ATS portals (Workday, Greenhouse, Lever, SmartRecruiters, Ashby).
 - **Smart Resume Routing**: Maps incoming job roles to 3 targeted PDF resumes (`resume_backend.pdf`, `resume_aiml.pdf`, `resume_dsda.pdf`).
-- **Persistent Q&A Memory**: Remembers custom application answers (e.g. CTC, notice period, graduation year, relocation) in `memory.json` so you never have to re-type them.
+- **Persistent Profile & Q&A Memory**: Instant field resolution via `profile.json` & `memory.json` so you never type personal info twice.
+- **AI-Powered Form Solver**: Integrates Google Gemini & Smart Heuristic AI to answer open-ended recruiter questions intelligently.
 - **Anti-Bot & Stealth Engine**: Removes `navigator.webdriver`, spoofs Chrome runtime & WebGL fingerprints, uses human mouse trajectories, and supports one-time session caching.
 - **Strict Relevance & Paid Filters**: Automatically skips unpaid/free internships, non-tech positions (CA, Articleship, Sales, HR), and senior/lead positions for 0-1 YOE candidates.
 - **Local Application Tracking**: Stores application logs in `applications.db` (SQLite) with one-click CSV export.
+
+---
+
+## 📱 Telegram Remote Setup (Operate From Your Phone)
+
+You can operate JHelp completely from your phone while away from your computer:
+
+### 1. Create a Telegram Bot (Takes 1 minute)
+1. Open Telegram and search for `@BotFather`.
+2. Send `/newbot` and follow the instructions to get your **Bot Token**.
+3. Add your credentials to `.env`:
+   ```env
+   TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
+   TELEGRAM_CHAT_ID=123456789
+   ```
+   *(If you don't know your `CHAT_ID`, just leave it blank and send `/start` to your bot — it will auto-bind!)*
+
+### 2. Start the Telegram Daemon
+```bash
+python main.py telegram
+```
+Now you will see interactive buttons on your phone in Telegram:
+- `🚀 Apply All` — Runs all platforms
+- `💼 Naukri` — Runs Naukri automation
+- `👔 LinkedIn` — Runs LinkedIn automation
+- `🔍 Indeed` — Runs Indeed automation
+- `📊 Stats` — Shows today's application count
+- `📋 Memory` — Shows saved answers
+- `🧪 Dry Run` — Test simulation mode
+- `🛑 Stop` — Stops running agent
+
+*(If an unknown question appears on a job site, the bot will text you on Telegram — just reply with your answer and it will continue automatically!)*
 
 ---
 
@@ -20,7 +54,7 @@ Automatically routes the right resume based on job role keywords, bypasses bot d
 
 ### 1. Clone & Install Dependencies
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Divyanshu7300/JHelper.git
 cd JHelp
 python3 -m venv .venv
 source .venv/bin/activate
@@ -68,30 +102,18 @@ python main.py setup-session --platform naukri
 
 ## 🚀 Usage
 
-### Dry Run (Test without submitting applications)
+### Run via Terminal
 ```bash
+# Dry run first — simulate without submitting
 python main.py --dry-run
-```
 
-### Run All Platforms
-```bash
+# Run all platforms
 python main.py
-```
 
-### Run a Specific Platform
-```bash
-python main.py --platform linkedin
+# Run only Naukri / LinkedIn / Indeed
 python main.py --platform naukri
+python main.py --platform linkedin
 python main.py --platform indeed
-```
-
-### Manage Saved Memory / Answers
-```bash
-# View all remembered answers
-python main.py memory
-
-# Delete a specific saved answer
-python main.py forget "What is your notice period?"
 ```
 
 ### View Application Stats & Export
@@ -107,7 +129,7 @@ python main.py export --output my_applications.csv
 
 ## 🔒 Security & Privacy
 
-- All sensitive files (`.env`, `sessions/`, `memory.json`, `resumes/*.pdf`, `applications.db`) are strictly ignored by `.gitignore`.
+- All sensitive files (`.env`, `sessions/`, `memory.json`, `profile.json`, `resumes/*.pdf`, `applications.db`) are strictly ignored by `.gitignore`.
 - No credentials or personal session cookies are ever uploaded to Git.
 - Passwords are read strictly from environment variables or local cookie storage.
 

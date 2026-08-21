@@ -231,5 +231,15 @@ def setup_session(platform):
         browser.close()
 
 
+@cli.command()
+@click.option("--config", "-c", default="config.yaml", help="Path to config file")
+def telegram(config):
+    """🤖 Start the Telegram Remote Bot to operate the agent from your phone."""
+    cfg = load_config(config)
+    from agent.telegram_bot import TelegramBot
+    bot = TelegramBot()
+    bot.start_polling(cfg)
+
+
 if __name__ == "__main__":
     cli()

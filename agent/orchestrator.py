@@ -13,6 +13,7 @@ from rich.table import Table
 from agent.resume_router import ResumeRouter
 from agent.tracker import ApplicationTracker
 from agent.memory import AnswerMemory
+from agent.telegram_bot import TelegramBot
 from agent.stealth import (
     STEALTH_BROWSER_ARGS,
     get_session_storage_state,
@@ -34,6 +35,7 @@ class Orchestrator:
         self.tracker = ApplicationTracker()
         self.router = ResumeRouter()
         self.memory = AnswerMemory()
+        self.telegram = TelegramBot()
         self.browser_cfg = config.get("browser", {})
 
     def _get_context_options(self, platform: str) -> dict:
@@ -169,3 +171,4 @@ class Orchestrator:
         console.print(table)
         csv_path = self.tracker.export_csv()
         console.print(f"\n📄 Full log exported → [link]{csv_path}[/link]")
+        self.telegram.notify_summary(results, self.tracker)

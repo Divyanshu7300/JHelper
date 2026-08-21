@@ -26,6 +26,8 @@ class AnswerMemory:
         self.memory_path = Path(memory_path)
         self.profile_mgr = ProfileManager()
         self.ai_answerer = AIAnswerer(self.profile_mgr)
+        from agent.telegram_bot import TelegramBot
+        self.telegram = TelegramBot()
         self.data: dict = self._load()
         self._seed_from_profile()
 
@@ -106,12 +108,22 @@ class AnswerMemory:
         """
         Full resolution pipeline:
         1. Profile/Memory check
-        2. AI generation (if auto_ai is True and open-ended question)
-        3. Terminal prompt to user (saves to memory)
+        2. Telegram interactive ask (if user configured TelegramBot and is away)
+        3. AI generation (if auto_ai is True and open-ended question)
+        4. Terminal prompt to user (saves to memory)
         """
         saved = self.get(question)
         if saved is not None and str(saved).strip():
             return str(saved).strip()
+
+        # Check if Telegram interactive ask is configured
+        if self.telegram and self.telegram.is_configured and self.telegram.chat_id:
+            telegram_ans = self.telegram.ask_question_interactive(question, timeout_seconds=45)
+            if telegram_ans:
+                norm_key = self._normalize_key(question)
+                self.data[norm_key] = telegram_ans
+                self._save()
+                return telegram_ans
 
         # Check if AI can answer
         if auto_ai:
