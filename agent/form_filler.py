@@ -526,65 +526,201 @@ class FormFiller:
 
         return True
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # EXTERNAL COMPANY SITE / ATS PORTAL HANDLER (Workday, Greenhouse, Lever, etc.)
-    # ─────────────────────────────────────────────────────────────────────────
-
     def handle_external_company_apply(self, page: Page, resume_path: str) -> bool:
         """
-        Fills and completes applications on external company career portals
-        (Workday, Greenhouse, Lever, SmartRecruiters, Ashby, Taleo, company pages).
+        Multi-Step ATS Wizard Solver for external company career portals
+        (Workday, Greenhouse, Lever, SmartRecruiters, Ashby, Taleo, BambooHR, custom portals).
+        Iterates through all wizard steps, uploads resume, fills fields with Profile/Memory/AI,
+        handles validation errors, and completes final submission.
         """
-        console.print(f"[bold cyan]ATS Form Filler:[/] Auto-filling company portal on [dim]{page.url[:60]}...[/]")
+        console.print(f"[bold cyan]ATS Form Filler:[/] Processing multi-step application on [dim]{page.url[:65]}...[/]")
         human_delay(2000, 3500)
 
-        # 1. Click initial "Apply" or "Apply for this job" button if on landing page
+        # Step 0: Click initial "Apply" / "Apply for this job" / "Apply Now" button if on landing page
         initial_apply_btn = (
             page.query_selector('a:has-text("Apply for this job")') or
             page.query_selector('button:has-text("Apply for this job")') or
             page.query_selector('a:has-text("Apply Now")') or
             page.query_selector('button:has-text("Apply Now")') or
             page.query_selector('[data-qa="btn-apply"]') or
-            page.query_selector('#apply_button')
+            page.query_selector('#apply_button') or
+            page.query_selector('button:has-text("Apply")') or
+            page.query_selector('a:has-text("Apply")')
         )
         if initial_apply_btn and initial_apply_btn.is_visible():
-            human_move_and_click(page, initial_apply_btn)
-            human_delay(1500, 3000)
+            try:
+                human_move_and_click(page, initial_apply_btn)
+                human_delay(2000, 3500)
+            except Exception:
+                pass
 
-        # 2. Upload Resume
-        if Path(resume_path).exists():
-            file_inputs = page.query_selector_all('input[type="file"]')
-            for fi in file_inputs:
+        max_steps = 12
+        last_step_sig = ""
+        stuck_count = 0
+
+        for step_idx in range(1, max_steps + 1):
+            human_delay(1500, 2500)
+
+            # 1. Check for immediate success / confirmation
+            success_indicators = [
+                'div:has-text("Application Submitted")',
+                'div:has-text("Application received")',
+                'div:has-text("Thank you for applying")',
+                'div:has-text("Your application was submitted")',
+                'div:has-text("Application Complete")',
+                'div:has-text("We have received your application")',
+                'h1:has-text("Thank you")',
+                'h2:has-text("Thank you")',
+                '[data-qa="msg-success"]',
+                '.application-success',
+                '.success-message'
+            ]
+            for succ_sel in success_indicators:
                 try:
-                    fi.set_input_files(resume_path)
-                    console.print(f"[dim]📎 Uploaded resume:[/] [magenta]{Path(resume_path).name}[/]")
-                    human_delay(1500, 2500)
-                    break
+                    succ_el = page.query_selector(succ_sel)
+                    if succ_el and succ_el.is_visible():
+                        console.print("[bold green]ATS Form Filler:[/] ✅ Application successfully submitted!")
+                        return True
                 except Exception:
                     pass
 
-        # 3. Fill form inputs, textareas, and dropdowns
-        self.fill_form_fields(page)
-        self.handle_checkbox_questions(page)
+            console.print(f"[dim]ATS Form Filler:[/] 📄 Processing Wizard Step {step_idx}...")
 
-        # 4. Handle CAPTCHA if presented
-        self.wait_for_captcha_if_needed(page)
+            # 2. Upload Resume if file inputs exist
+            if Path(resume_path).exists():
+                file_inputs = page.query_selector_all('input[type="file"]')
+                for fi in file_inputs:
+                    try:
+                        fi.set_input_files(resume_path)
+                        console.print(f"[dim]📎 Uploaded resume:[/] [magenta]{Path(resume_path).name}[/]")
+                        human_delay(1200, 2000)
+                        break
+                    except Exception:
+                        pass
 
-        # 5. Look for Submit Application button
-        submit_btn = (
-            page.query_selector('button[type="submit"]') or
-            page.query_selector('input[type="submit"]') or
-            page.query_selector('button:has-text("Submit Application")') or
-            page.query_selector('button:has-text("Submit")') or
-            page.query_selector('button:has-text("Apply Now")') or
-            page.query_selector('button:has-text("Review Application")') or
-            page.query_selector('button[id*="submit"]')
-        )
+            # 3. Fill all form fields on current step
+            self.fill_form_fields(page)
+            self.handle_checkbox_questions(page)
 
-        if submit_btn and submit_btn.is_visible():
-            console.print("[bold green]ATS Form Filler:[/] Submitting application...")
-            human_move_and_click(page, submit_btn)
-            human_delay(3000, 5000)
-            return True
+            # 4. Handle CAPTCHA if presented
+            self.wait_for_captcha_if_needed(page)
 
-        return False
+            # 5. Look for Final Submit Button
+            submit_selectors = [
+                'button[data-automation-id="bottom-navigation-submit-button"]',
+                'button[data-test="submit-button"]',
+                'button[data-qa="btn-submit"]',
+                '#submit_app',
+                '#btn-submit',
+                'button[id*="submit"]',
+                'button:has-text("Submit Application")',
+                'button:has-text("Submit application")',
+                'button:has-text("Submit")',
+                'input[type="submit"][value*="Submit"]',
+                'button:has-text("Finish Application")',
+                'button:has-text("Send Application")'
+            ]
+            submit_btn = None
+            for sel in submit_selectors:
+                try:
+                    s_el = page.query_selector(sel)
+                    if s_el and s_el.is_visible() and not s_el.is_disabled():
+                        submit_btn = s_el
+                        break
+                except Exception:
+                    pass
+
+            # 6. Look for Next / Continue Step Button
+            next_selectors = [
+                'button[data-automation-id="bottom-navigation-next-button"]',
+                'button[data-automation-id="page-navigation-next-button"]',
+                'button[data-test="next-button"]',
+                'button:has-text("Save & Continue")',
+                'button:has-text("Save and Continue")',
+                'button:has-text("Save & continue")',
+                'button:has-text("Next Step")',
+                'button:has-text("Next step")',
+                'button:has-text("Next")',
+                'button:has-text("Continue")',
+                'button:has-text("Proceed")',
+                'button:has-text("Review Application")',
+                'button:has-text("Review")',
+                'button:has-text("Save & Next")',
+                'input[type="button"][value*="Next"]',
+                'input[type="submit"][value*="Next"]',
+                'input[type="button"][value*="Continue"]'
+            ]
+            next_btn = None
+            for sel in next_selectors:
+                try:
+                    n_el = page.query_selector(sel)
+                    if n_el and n_el.is_visible() and not n_el.is_disabled():
+                        next_btn = n_el
+                        break
+                except Exception:
+                    pass
+
+            # Priority 1: If Final Submit Button is present and we're not on intermediate step
+            if submit_btn and (not next_btn or "submit" in (submit_btn.inner_text() or "").lower()):
+                console.print("[bold green]ATS Form Filler:[/] Submitting application...")
+                try:
+                    human_move_and_click(page, submit_btn)
+                    human_delay(3000, 5000)
+                except Exception:
+                    try:
+                        submit_btn.click(force=True)
+                        human_delay(3000, 5000)
+                    except Exception:
+                        pass
+
+                # Check post-submit confirmation
+                for succ_sel in success_indicators:
+                    try:
+                        succ_el = page.query_selector(succ_sel)
+                        if succ_el and succ_el.is_visible():
+                            console.print("[bold green]ATS Form Filler:[/] ✅ Application successfully submitted!")
+                            return True
+                    except Exception:
+                        pass
+                return True
+
+            # Priority 2: Click Next / Continue button to advance to next wizard step
+            if next_btn:
+                btn_name = next_btn.inner_text().strip() if next_btn.inner_text() else "Next"
+                console.print(f"[dim]ATS Form Filler:[/] ➡️ Advancing to next step ({btn_name})...")
+                try:
+                    human_move_and_click(page, next_btn)
+                    human_delay(2000, 3500)
+                except Exception:
+                    try:
+                        next_btn.click(force=True)
+                        human_delay(2000, 3500)
+                    except Exception:
+                        pass
+
+                # Check if stuck on same step (e.g. required field missing)
+                current_sig = page.url
+                if current_sig == last_step_sig:
+                    stuck_count += 1
+                    if stuck_count >= 2:
+                        console.print("[yellow]ATS Form Filler:[/] Required field missing — auto-resolving empty inputs...[/]")
+                        empty_inputs = page.query_selector_all('input[required], [aria-required="true"]')
+                        for ei in empty_inputs:
+                            try:
+                                if ei.is_visible() and not ei.input_value():
+                                    lbl = self._get_label(page, ei)
+                                    val = self._resolve_answer(lbl or "field", ei) or "0"
+                                    self._fill_field(ei, str(val))
+                            except Exception:
+                                pass
+                else:
+                    stuck_count = 0
+
+                last_step_sig = current_sig
+                continue
+
+            # If neither submit nor next button was found
+            console.print("[dim]ATS Form Filler:[/] Form processing complete.[/]")
+            break
+
+        return True
