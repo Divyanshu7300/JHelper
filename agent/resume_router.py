@@ -47,13 +47,25 @@ class ResumeRouter:
                 r"\bwithout\s*stipend\b",
                 r"\bzero\s*stipend\b",
                 r"\b0\s*stipend\b",
-                r"\bun-paid\b",
+                r"\bnon[\s\-]paid\b",
                 r"\bfree\s*internship\b",
-                r"stipend\s*:\s*(unpaid|0|nil|none)\b",
+                r"\bstipend\s*[\:\-]\s*(unpaid|nil|none|0|na|n\/a|no|zero)\b",
+                r"\bexpenses\s*only\b",
+                r"\bcertificate\s*(only|and\s*lor\s*only)\b",
+                r"\bonly\s*certificate\b",
+                r"\bno\s*(salary|pay|compensation|remuneration)\b",
+                r"\bvolunteer\b",
+                r"\bcommission\s*only\b",
+                r"\bperformance\s*based\s*only\b",
+                r"\b0\s*-\s*0\s*(pa|lacs|k|inr|per\s*month)\b",
+                r"\b₹\s*0\b",
+                r"\b0\s*inr\b",
+                r"\b0\s*lpa\b",
+                r"\b0\s*per\s*month\b"
             ]
             for pat in unpaid_patterns:
                 if re.search(pat, combined_text):
-                    return False, None, None, f"Unpaid internship detected ('{pat}')"
+                    return False, None, None, f"Unpaid internship detected"
 
         # 2. Excluded keywords check (in title or prominent in JD)
         for kw in self.exclude_keywords:

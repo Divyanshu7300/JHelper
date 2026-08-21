@@ -10,6 +10,8 @@ profiles/
 
 # User Personal Data & Q&A Memory (NEVER COMMIT)
 memory.json
+profile.json
+!profile.example.json
 
 # Resumes (Personal PDFs)
 resumes/*

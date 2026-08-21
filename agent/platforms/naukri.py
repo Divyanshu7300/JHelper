@@ -297,6 +297,16 @@ class NaukriAgent:
         if not title_el:
             return 0
 
+        # Pre-evaluate on card text (instant skip for unpaid badges / non-tech titles)
+        try:
+            card_text = item.inner_text() if item else ""
+            is_valid_card, _, _, card_skip = self.router.evaluate_job(job_title_text, card_text)
+            if not is_valid_card:
+                console.print(f"[dim]Naukri:[/] 🚫 Skipping ({card_skip}) → [yellow]{job_title_text}[/]")
+                return 0
+        except Exception:
+            pass
+
         # Open job detail page
         detail_page = self.page
         try:
@@ -318,9 +328,17 @@ class NaukriAgent:
                 detail_page.close()
             return 0
 
-        # Extract Job Description & details from detail page
-        jd_text = ""
+        # Extract salary info & full Job Description from detail page
+        detail_text = ""
         try:
+            salary_el = (
+                detail_page.query_selector('.styles_jds__salary__') or
+                detail_page.query_selector('.salary') or
+                detail_page.query_selector('[class*="sal"]') or
+                detail_page.query_selector('.top-card-layout')
+            )
+            sal_text = salary_el.inner_text().strip() if salary_el else ""
+
             jd_el = (
                 detail_page.query_selector('.dang-inner-html') or
                 detail_page.query_selector('.job-desc') or
@@ -329,13 +347,13 @@ class NaukriAgent:
                 detail_page.query_selector('.jd-description') or
                 detail_page.query_selector('.job-description')
             )
-            if jd_el:
-                jd_text = jd_el.inner_text().strip()
+            jd_text = jd_el.inner_text().strip() if jd_el else ""
+            detail_text = f"{sal_text} {jd_text}"
         except Exception:
             pass
 
         # Evaluate job for paid status, non-tech/CA exclusions, and tech relevance
-        is_valid, actual_role, actual_resume, skip_reason = self.router.evaluate_job(job_title_text, jd_text)
+        is_valid, actual_role, actual_resume, skip_reason = self.router.evaluate_job(job_title_text, detail_text)
         if not is_valid:
             console.print(f"[dim]Naukri:[/] 🚫 Skipping ({skip_reason}) → [yellow]{job_title_text}[/]")
             if detail_page != self.page:

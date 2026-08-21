@@ -1,0 +1,57 @@
+{
+  "personal": {
+    "first_name": "YourFirstName",
+    "last_name": "YourLastName",
+    "full_name": "Your Full Name",
+    "email": "your_email@example.com",
+    "phone": "9876543210",
+    "gender": "Male",
+    "date_of_birth": "01/01/2000"
+  },
+  "location": {
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "country": "India",
+    "current_location": "Bengaluru, Karnataka, India",
+    "willing_to_relocate": "Yes",
+    "open_to_remote": "Yes",
+    "open_to_hybrid": "Yes"
+  },
+  "links": {
+    "portfolio": "https://yourportfolio.com",
+    "linkedin": "https://linkedin.com/in/yourprofile",
+    "github": "https://github.com/yourusername"
+  },
+  "education": {
+    "highest_degree": "Bachelor of Technology (B.Tech)",
+    "degree": "B.Tech",
+    "college": "Your College Name",
+    "university": "Your University Name",
+    "branch": "Computer Science Engineering",
+    "graduation_year": "2025",
+    "cgpa": "8.5"
+  },
+  "experience": {
+    "years_of_experience": "0",
+    "total_experience": "0 Years (Fresher)",
+    "current_company": "None (Fresher)",
+    "current_designation": "Fresher Developer",
+    "career_break": "No"
+  },
+  "compensation_and_notice": {
+    "current_ctc": "0",
+    "expected_ctc": "6 LPA",
+    "notice_period": "0 days",
+    "notice_period_text": "Immediate (0 Days)",
+    "availability": "Immediately"
+  },
+  "work_authorization": {
+    "authorized_in_india": "Yes",
+    "requires_sponsorship": "No"
+  },
+  "skills": {
+    "backend": "Python, FastAPI, Node.js, REST APIs, SQL, Docker",
+    "ai_ml": "Python, PyTorch, YOLOv8, GenAI, Machine Learning",
+    "data_science": "Python, SQL, Tableau, Pandas, Data Analysis"
+  }
+}

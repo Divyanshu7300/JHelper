@@ -1,8 +1,8 @@
 """
 agent/form_filler.py
-Smart form filler — handles standard forms, multi-step ATS modals,
-Naukri recruiter chatbots, and external company site applications.
-Checks memory, pauses to ask the user if needed, and saves answers permanently.
+Smart form filler — handles standard forms, multi-step ATS modals (Workday, Greenhouse,
+Lever, SmartRecruiters, Ashby), Naukri recruiter chatbots, and company career pages.
+Resolves answers via permanent profile.json, memory.json, and AIAnswerer.
 """
 
 from typing import Optional, List, Dict
@@ -15,74 +15,51 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from agent.memory import AnswerMemory
+from agent.profile_manager import ProfileManager
+from agent.ai_answerer import AIAnswerer
 from agent.stealth import human_delay, human_type, human_move_and_click
 
 console = Console()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Comprehensive field patterns → auto-answer logic
-# The agent checks these FIRST before falling back to memory/user-ask
-# ─────────────────────────────────────────────────────────────────────────────
-KNOWN_FIELD_PATTERNS = {
-    # Full Name / First / Last Name
-    r"^(full\s*name|your\s*name|candidate\s*name)$": {"key": "full_name", "prompt": "What is your full name?"},
-    r"^(first\s*name|given\s*name)$": {"key": "first_name", "prompt": "What is your first name?"},
-    r"^(last\s*name|surname|family\s*name)$": {"key": "last_name", "prompt": "What is your last name?"},
-
-    # Email & Phone
-    r"^(email|email\s*address|e-mail)$": {"key": "email_address", "prompt": "What is your email address?"},
-    r"(phone|mobile|contact\s*number|phone\s*number)": {"key": "phone_number", "prompt": "What is your phone/mobile number?"},
-
-    # Notice Period
-    r"notice\s*period": {"key": "notice_period", "prompt": "What is your notice period? (e.g. Immediate / 15 Days / 30 Days)"},
-
-    # CTC / Compensation
-    r"expected\s*(ctc|salary|compensation|lpa|package)": {"key": "expected_ctc", "prompt": "What is your expected CTC/salary? (e.g. 6 LPA / 8 LPA / Negotiable)"},
-    r"current\s*(ctc|salary|compensation|lpa|package)": {"key": "current_ctc", "prompt": "What is your current CTC/salary? (e.g. 0 LPA / Fresher)"},
-
-    # Experience
-    r"(years?\s*of\s*experience|total\s*experience|work\s*experience|relevant\s*experience)": {"key": "years_of_experience", "prompt": "How many years of experience do you have? (e.g. 0 / Fresher)"},
-
-    # Social Profiles
-    r"linkedin\s*(url|profile|link)?": {"key": "linkedin_url", "prompt": "What is your LinkedIn profile URL?"},
-    r"github\s*(url|profile|link)?": {"key": "github_url", "prompt": "What is your GitHub profile URL?"},
-    r"portfolio\s*(url|link|website)?": {"key": "portfolio_url", "prompt": "What is your portfolio/website URL?"},
-
-    # Location & Relocation
-    r"(current\s*city|current\s*location|city\s*of\s*residence|where\s*are\s*you\s*located)": {"key": "current_city", "prompt": "What is your current city?"},
-    r"willing\s*to\s*relocat": {"key": "willing_to_relocate", "prompt": "Are you willing to relocate?", "type": "yesno"},
-    r"(work\s*authori|visa|authorized\s*to\s*work)": {"key": "work_authorization", "prompt": "Are you authorized to work in India?", "type": "yesno"},
-
-    # Education / College
-    r"(college|university|institute|school)": {"key": "college_name", "prompt": "What is your college/university name?"},
-    r"(degree|qualification|highest\s*education)": {"key": "degree", "prompt": "What is your degree/qualification? (e.g. B.Tech Computer Science)"},
-    r"(graduation\s*year|passing\s*year|year\s*of\s*graduation)": {"key": "graduation_year", "prompt": "What is your graduation/passing year? (e.g. 2024 / 2025)"},
-    r"(branch|stream|field\s*of\s*study|specialization|major)": {"key": "branch", "prompt": "What is your branch/stream? (e.g. Computer Science Engineering)"},
-    r"(cgpa|gpa|percentage|marks)": {"key": "cgpa", "prompt": "What is your CGPA / Percentage? (e.g. 8.5 CGPA)"},
-
-    # Availability & Full-time
-    r"(available|availability|start\s*date|when\s*can\s*you\s*start|can\s*you\s*join)": {"key": "availability", "prompt": "When can you start? (e.g. Immediately)"},
-    r"(full\s*time|internship\s*duration|duration|commitment)": {"key": "internship_duration", "prompt": "Are you available for 6 months full-time internship?", "type": "yesno"},
-
-    # Gender & Personal
-    r"gender": {"key": "gender", "prompt": "What is your gender? (e.g. Male / Female)"},
-    r"(date\s*of\s*birth|dob|birth\s*date)": {"key": "date_of_birth", "prompt": "What is your date of birth? (DD/MM/YYYY)"},
-    r"cover\s*letter": {"key": "cover_letter", "prompt": "Write a short cover letter (2-3 sentences):"},
-}
+# Input field labels / placeholders that belong to page search bars or navigation — MUST BE IGNORED
+IGNORED_FIELD_PATTERNS = [
+    r"search\s*by\s*keyword",
+    r"search\s*by\s*location",
+    r"search\s*jobs",
+    r"add\s*new\s*skill",
+    r"add\s*skill",
+    r"find\s*jobs",
+    r"filter\s*by",
+    r"keyword",
+    r"nav\s*search",
+    r"site\s*search",
+    r"newsletter",
+    r"subscribe",
+    r"search\s*candidate",
+    r"search\s*companies",
+    r"enter\s*keyword",
+    r"location\s*search"
+]
 
 
 class FormFiller:
     def __init__(self, memory: AnswerMemory):
         self.memory = memory
+        self.profile_mgr = ProfileManager()
+        self.ai_answerer = AIAnswerer(self.profile_mgr)
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # STANDARD FORM FILLING
-    # ─────────────────────────────────────────────────────────────────────────
+    def is_ignored_field(self, label: str, placeholder: str, name: str) -> bool:
+        """Check if an input field is a search bar or navigation filter."""
+        combined = f"{label} {placeholder} {name}".lower()
+        for pat in IGNORED_FIELD_PATTERNS:
+            if re.search(pat, combined):
+                return True
+        return False
 
     def fill_form_fields(self, page: Page) -> int:
         """
         Scans all visible input/select/textarea fields on the page.
-        Resolves answers via known patterns -> memory -> interactive terminal ask.
+        Resolves answers via profile -> memory -> AI answerer -> prompt user.
         """
         filled = 0
         fields = page.query_selector_all(
@@ -95,20 +72,29 @@ class FormFiller:
                 if not field.is_visible():
                     continue
 
+                # Skip search bars / navigation inputs
+                placeholder = field.get_attribute("placeholder") or ""
+                name = field.get_attribute("name") or ""
+                label = self._get_label(page, field)
+
+                if self.is_ignored_field(label, placeholder, name):
+                    continue
+
                 # Skip already filled fields
                 current_value = self._get_field_value(field)
                 if current_value and current_value.strip():
                     continue
 
-                label = self._get_label(page, field)
+                if not label and placeholder:
+                    label = placeholder
                 if not label:
                     continue
 
                 answer = self._resolve_answer(label, field)
                 if answer:
-                    self._fill_field(field, answer)
+                    self._fill_field(field, str(answer))
                     filled += 1
-                    human_delay(150, 350)
+                    human_delay(150, 300)
 
             except Exception as e:
                 console.print(f"[dim]FormFiller: skipping field — {e}[/]")
@@ -132,17 +118,17 @@ class FormFiller:
             if aria_label and len(aria_label.strip()) > 1:
                 return aria_label.strip()
 
-            # 2. placeholder
-            placeholder = field.get_attribute("placeholder")
-            if placeholder and len(placeholder.strip()) > 1:
-                return placeholder.strip()
-
-            # 3. associated <label for="...">
+            # 2. associated <label for="...">
             field_id = field.get_attribute("id")
             if field_id:
                 label_el = page.query_selector(f'label[for="{field_id}"]')
                 if label_el and label_el.inner_text().strip():
                     return label_el.inner_text().strip()
+
+            # 3. placeholder
+            placeholder = field.get_attribute("placeholder")
+            if placeholder and len(placeholder.strip()) > 1:
+                return placeholder.strip()
 
             # 4. parent label or preceding label container
             parent_text = field.evaluate("""
@@ -169,31 +155,35 @@ class FormFiller:
 
     def _resolve_answer(self, label: str, field: ElementHandle = None) -> Optional[str]:
         """
-        Resolves answer:
-        1. Checks KNOWN_FIELD_PATTERNS
-        2. Checks AnswerMemory
-        3. Prompts user interactively & saves to memory
+        Multi-tier answer resolution pipeline:
+        1. ProfileManager (Instant canonical profile lookup from profile.json)
+        2. AnswerMemory (memory.json normalized lookup)
+        3. AIAnswerer (Contextual AI answer for open-ended questions)
+        4. Interactive prompt to user (Permanent save)
         """
-        label_lower = label.lower().strip()
+        # Tier 1: Profile Manager
+        profile_ans = self.profile_mgr.match_field(label)
+        if profile_ans is not None:
+            return str(profile_ans)
 
-        # 1. Match known patterns
-        for pattern, meta in KNOWN_FIELD_PATTERNS.items():
-            if re.search(pattern, label_lower):
-                field_key = meta["key"]
-                field_prompt = meta["prompt"]
-                field_type = meta.get("type", "text")
-                answer = self.memory.ask_and_save(field_prompt, field_type)
-                return answer
+        # Tier 2: Answer Memory
+        mem_ans = self.memory.get(label)
+        if mem_ans:
+            return str(mem_ans)
 
-        # 2. Check memory directly
-        saved = self.memory.get(label)
-        if saved:
-            console.print(f"[dim]💾 Memory auto-fill:[/] [cyan]{label}[/] → [green]{saved}[/]")
-            return saved
+        # Determine expected type
+        field_type = "text"
+        if field:
+            try:
+                ft = field.get_attribute("type") or ""
+                if ft in ("number", "tel"):
+                    field_type = "number"
+            except Exception:
+                pass
 
-        # 3. Unknown field — prompt user interactively
-        console.print(f"\n[bold yellow]❓ Job Application asks:[/] [bold cyan]{label}[/]")
-        answer = self.memory.ask_and_save(label)
+        # Tier 3: AI Answerer / Fallback
+        console.print(f"[dim]🤖 Resolving via AI/Memory:[/] [cyan]{label}[/]")
+        answer = self.memory.resolve_or_ask(label, field_type, auto_ai=True)
         return answer if answer else None
 
     def _fill_field(self, field: ElementHandle, value: str):
@@ -202,24 +192,50 @@ class FormFiller:
             tag = field.evaluate("el => el.tagName.toLowerCase()")
             if tag == "select":
                 try:
+                    # Select option matching label
                     field.select_option(label=value)
+                    return
                 except Exception:
-                    try:
-                        field.select_option(value=value)
-                    except Exception:
-                        pass
+                    pass
+
+                try:
+                    # Select option matching value
+                    field.select_option(value=value)
+                    return
+                except Exception:
+                    pass
+
+                # Try selecting first non-empty option
+                try:
+                    field.evaluate("""
+                        el => {
+                            for (let i = 0; i < el.options.length; i++) {
+                                if (el.options[i].text.toLowerCase().includes('yes') || 
+                                    el.options[i].text.toLowerCase().includes('immediate') || 
+                                    el.options[i].value) {
+                                    el.selectedIndex = i;
+                                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                                    break;
+                                }
+                            }
+                        }
+                    """)
+                    return
+                except Exception:
+                    pass
                 return
 
             field.scroll_into_view_if_needed()
             field.click()
-            time.sleep(random.uniform(0.1, 0.25))
+            time.sleep(random.uniform(0.08, 0.18))
             field.fill("")
-            time.sleep(random.uniform(0.05, 0.15))
+            time.sleep(random.uniform(0.04, 0.10))
 
+            # Fast human typing
             for char in value:
-                delay = random.randint(40, 110)
+                delay = random.randint(25, 75)
                 field.type(char, delay=delay)
-            time.sleep(random.uniform(0.1, 0.25))
+            time.sleep(random.uniform(0.08, 0.20))
 
         except Exception:
             try:
@@ -238,10 +254,10 @@ class FormFiller:
                     continue
                 handled_groups.add(name)
 
-                # Check if group has a checked radio
+                # Check if group already has a checked radio
                 is_checked = page.evaluate(f'document.querySelector(\'input[type="radio"][name="{name}"]:checked\') !== null')
                 if not is_checked:
-                    # Look for positive options like "Yes", "Immediate", "0", "Fresher"
+                    # Look for positive options like "Yes", "Immediate", "0", "Fresher", "Authorized"
                     group_radios = page.query_selector_all(f'input[type="radio"][name="{name}"]')
                     clicked = False
                     for gr in group_radios:
@@ -251,12 +267,29 @@ class FormFiller:
                                 return lbl ? lbl.innerText.trim().toLowerCase() : (el.value || '').toLowerCase();
                             }
                         """)
-                        if any(pos in label_text for pos in ["yes", "immediate", "fresher", "0", "agree", "authorized", "100"]):
+                        if any(pos in label_text for pos in ["yes", "immediate", "fresher", "0", "agree", "authorized", "100", "full time"]):
                             gr.click()
                             clicked = True
                             break
                     if not clicked and group_radios:
                         group_radios[0].click()
+
+            # Handle required checkboxes (Terms & Conditions, Privacy Policy, Confirmation)
+            checkboxes = page.query_selector_all('input[type="checkbox"]')
+            for cb in checkboxes:
+                try:
+                    if cb.is_visible() and not cb.is_checked():
+                        cb_label = cb.evaluate("""
+                            el => {
+                                const lbl = el.closest('label') || document.querySelector(`label[for="${el.id}"]`);
+                                return lbl ? lbl.innerText.trim().toLowerCase() : '';
+                            }
+                        """)
+                        if any(k in cb_label for k in ["agree", "terms", "consent", "authorize", "confirm", "acknowledge", "certify"]):
+                            cb.click()
+                except Exception:
+                    pass
+
         except Exception:
             pass
 
@@ -293,9 +326,8 @@ class FormFiller:
     def handle_naukri_chatbot(self, page: Page) -> bool:
         """
         Handles the Naukri Recruiter Chatbot drawer / Questionnaire step-by-step.
-        Reads bot prompts, checks chips/options or inputs, auto-fills or asks user.
+        Reads bot prompts, checks chips/options or inputs, auto-fills with profile/memory/AI.
         """
-        # Check if chatbot or questionnaire drawer exists
         chatbot_drawer = (
             page.query_selector('.chatbot_drawer') or
             page.query_selector('.chat-drawer') or
@@ -306,11 +338,11 @@ class FormFiller:
         if not chatbot_drawer or not chatbot_drawer.is_visible():
             return False
 
-        console.print("[bold yellow]Naukri:[/] 🤖 Recruiter Chatbot / Questionnaire detected — answering questions...")
+        console.print("[bold yellow]Naukri:[/] 🤖 Recruiter Chatbot detected — auto-answering questions...")
 
         max_interactions = 15
         for step in range(max_interactions):
-            human_delay(1500, 2500)
+            human_delay(1200, 2000)
 
             # Check if chat is finished / success message
             success_el = (
@@ -323,7 +355,7 @@ class FormFiller:
                 console.print("[bold green]Naukri:[/] ✅ Chatbot application completed successfully!")
                 return True
 
-            # 1. Look for quick-reply option chips/buttons (e.g. Yes/No, Notice Period options, CTC)
+            # 1. Quick-reply option chips (e.g. Yes/No, Notice Period, CTC, Experience)
             chips = page.query_selector_all(
                 '.chip, button[class*="chip"], div[class*="chip"], '
                 '.chatbot-options button, .bot-options button, li[class*="option"]'
@@ -331,59 +363,39 @@ class FormFiller:
             visible_chips = [c for c in chips if c.is_visible()]
 
             if visible_chips:
-                # Read latest bot message text
                 bot_msg_el = page.query_selector_all('.msg_bot, .bot-msg, .message_text, [class*="botText"], div[class*="msg"]')
                 question_text = bot_msg_el[-1].inner_text().strip() if bot_msg_el else "Question"
 
-                console.print(f"\n[bold cyan]Naukri Bot asks:[/] {question_text}")
                 chip_texts = [c.inner_text().strip() for c in visible_chips]
+                console.print(f"\n[bold cyan]Naukri Bot asks:[/] {question_text}")
 
-                # Check if we have an answer in memory for this question
-                saved_ans = self.memory.get(question_text)
+                # Resolve answer via Profile / Memory / AI
+                answer = self._resolve_answer(question_text)
                 clicked_chip = False
 
-                if saved_ans:
+                if answer:
                     for i, chip_el in enumerate(visible_chips):
-                        if saved_ans.lower() in chip_texts[i].lower() or chip_texts[i].lower() in saved_ans.lower():
+                        if answer.lower() in chip_texts[i].lower() or chip_texts[i].lower() in answer.lower():
                             human_move_and_click(page, chip_el)
                             console.print(f"[dim]Auto-selected option:[/] [green]{chip_texts[i]}[/]")
                             clicked_chip = True
                             break
 
                 if not clicked_chip:
-                    # Ask user to pick an option or answer
-                    console.print("[yellow]Options available:[/]")
-                    for idx, opt in enumerate(chip_texts, 1):
-                        console.print(f"  [{idx}] {opt}")
+                    # Select first logical positive chip or first option
+                    for i, chip_el in enumerate(visible_chips):
+                        if any(pos in chip_texts[i].lower() for pos in ["yes", "immediate", "0", "fresher", "jaipur"]):
+                            human_move_and_click(page, chip_el)
+                            clicked_chip = True
+                            break
 
-                    chosen = Prompt.ask(
-                        f"[bold]Select option number (1-{len(chip_texts)}) or type answer[/]",
-                        default="1"
-                    )
-
-                    # Determine selection
-                    selected_chip = None
-                    if chosen.isdigit() and 1 <= int(chosen) <= len(chip_texts):
-                        selected_chip = visible_chips[int(chosen) - 1]
-                        self.memory.data[self.memory._normalize_key(question_text)] = chip_texts[int(chosen) - 1]
-                        self.memory._save()
-                    else:
-                        for i, chip_el in enumerate(visible_chips):
-                            if chosen.lower() in chip_texts[i].lower():
-                                selected_chip = chip_el
-                                self.memory.data[self.memory._normalize_key(question_text)] = chip_texts[i]
-                                self.memory._save()
-                                break
-
-                    if selected_chip:
-                        human_move_and_click(page, selected_chip)
-                    elif visible_chips:
+                    if not clicked_chip and visible_chips:
                         human_move_and_click(page, visible_chips[0])
 
-                human_delay(1500, 2500)
+                human_delay(1200, 2000)
                 continue
 
-            # 2. Look for text input inside chatbot
+            # 2. Text input inside chatbot
             chat_input = (
                 page.query_selector('.chat-input') or
                 page.query_selector('input[placeholder*="type"]') or
@@ -401,11 +413,11 @@ class FormFiller:
                 answer = self._resolve_answer(question_text, chat_input)
                 if answer:
                     chat_input.click()
-                    human_delay(200, 400)
+                    human_delay(150, 300)
                     chat_input.fill("")
-                    for char in answer:
-                        chat_input.type(char, delay=random.randint(40, 100))
-                    human_delay(300, 600)
+                    for char in str(answer):
+                        chat_input.type(char, delay=random.randint(25, 75))
+                    human_delay(200, 400)
 
                     send_btn = (
                         page.query_selector('button.send-btn') or
@@ -418,10 +430,10 @@ class FormFiller:
                     else:
                         page.keyboard.press("Enter")
 
-                human_delay(2000, 3000)
+                human_delay(1500, 2500)
                 continue
 
-            # 3. Look for Submit / Done / Apply button in chatbot
+            # 3. Submit / Done / Apply button in chatbot
             submit_btn = (
                 page.query_selector('button:has-text("Submit")') or
                 page.query_selector('button:has-text("Apply")') or
@@ -445,7 +457,7 @@ class FormFiller:
         Fills and completes applications on external company career portals
         (Workday, Greenhouse, Lever, SmartRecruiters, Ashby, Taleo, company pages).
         """
-        console.print(f"[bold cyan]ATS Form Filler:[/] Processing company application form on [dim]{page.url[:60]}...[/]")
+        console.print(f"[bold cyan]ATS Form Filler:[/] Auto-filling company portal on [dim]{page.url[:60]}...[/]")
         human_delay(2000, 3500)
 
         # 1. Click initial "Apply" or "Apply for this job" button if on landing page
