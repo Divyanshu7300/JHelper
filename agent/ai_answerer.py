@@ -85,9 +85,11 @@ class AIAnswerer:
         Smart Contextual Heuristic AI:
         Recognizes question intents and crafts high-quality professional responses.
         """
-        q_lower = question.lower()
+        # 1. Experience in ANY skill or general experience (Always 0 for fresher)
+        if any(k in q_lower for k in ["experience", "years of", "how many years", "how much experience", "work exp", "years in", "years with"]):
+            return "0"
 
-        # 1. Why should we hire you / Why join us / About yourself
+        # 2. Why should we hire you / Why join us / About yourself
         if any(k in q_lower for k in ["why should we hire you", "why do you want to join", "why this role", "tell us about yourself", "about yourself", "cover letter"]):
             return (
                 "I am a passionate software and AI engineer pursuing my MCA at Manipal University Jaipur. "

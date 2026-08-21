@@ -102,9 +102,11 @@ class ProfileManager:
         if re.search(r"\b(cgpa|gpa|percentage|marks|grade)\b", cleaned):
             return self.data.get("education", {}).get("cgpa", "8.5")
 
-        # 6. Experience
-        if re.search(r"\b(years?\s*of\s*experience|total\s*experience|work\s*experience|relevant\s*experience|experience\s*in\s*years)\b", cleaned):
-            return self.data.get("experience", {}).get("years_of_experience", "0")
+        # 6. Experience (Always 0 / Fresher for all general and skill-specific experience questions)
+        if re.search(r"\b(experience|how\s*many\s*years|years?\s*of\s*experience|work\s*experience|relevant\s*experience|total\s*experience|experience\s*in\s*years)\b", cleaned):
+            return "0"
+        if re.search(r"\b(years?)\b.*\b(in|with|of|on)\b", cleaned):
+            return "0"
         if re.search(r"\b(career\s*break|gap\s*in\s*education|employment\s*gap)\b", cleaned):
             return self.data.get("experience", {}).get("career_break", "No")
         if re.search(r"\b(current\s*company|current\s*employer|present\s*company)\b", cleaned):

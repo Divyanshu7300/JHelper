@@ -326,7 +326,8 @@ class FormFiller:
     def handle_naukri_chatbot(self, page: Page) -> bool:
         """
         Handles the Naukri Recruiter Chatbot drawer / Questionnaire step-by-step.
-        Reads bot prompts, checks chips/options or inputs, auto-fills with profile/memory/AI.
+        Reads bot prompts, matches chips (especially 0 years for any skill experience),
+        types into chat inputs, and prevents infinite question looping.
         """
         chatbot_drawer = (
             page.query_selector('.chatbot_drawer') or
@@ -340,7 +341,9 @@ class FormFiller:
 
         console.print("[bold yellow]Naukri:[/] 🤖 Recruiter Chatbot detected — auto-answering questions...")
 
-        max_interactions = 15
+        seen_questions: Dict[str, int] = {}
+        max_interactions = 18
+
         for step in range(max_interactions):
             human_delay(1200, 2000)
 
@@ -348,6 +351,7 @@ class FormFiller:
             success_el = (
                 page.query_selector('div:has-text("applied successfully")') or
                 page.query_selector('div:has-text("Application sent")') or
+                page.query_selector('div:has-text("already applied")') or
                 page.query_selector('.apply-message') or
                 page.query_selector('[class*="success"]')
             )
@@ -355,44 +359,118 @@ class FormFiller:
                 console.print("[bold green]Naukri:[/] ✅ Chatbot application completed successfully!")
                 return True
 
-            # 1. Quick-reply option chips (e.g. Yes/No, Notice Period, CTC, Experience)
+            # Extract latest bot message
+            bot_msg_el = page.query_selector_all(
+                '.msg_bot, .bot-msg, .message_text, [class*="botText"], div[class*="msg"], .bot-message'
+            )
+            question_text = bot_msg_el[-1].inner_text().strip() if bot_msg_el else "Question"
+            question_clean = re.sub(r"\s+", " ", question_text).strip()
+
+            seen_questions[question_clean] = seen_questions.get(question_clean, 0) + 1
+            repeat_count = seen_questions[question_clean]
+
+            # If the same question has repeated 3 times, break or force submit to prevent hanging
+            if repeat_count > 3:
+                console.print(f"[dim]Naukri Bot: Question repeated {repeat_count} times, advancing...[/]")
+                submit_btn = page.query_selector('button:has-text("Submit"), button:has-text("Apply"), button:has-text("Save & Apply")')
+                if submit_btn and submit_btn.is_visible():
+                    submit_btn.click()
+                    human_delay(1500, 2500)
+                    return True
+                break
+
+            console.print(f"\n[bold cyan]Naukri Bot asks:[/] {question_text}")
+
+            # 1. Look for quick-reply option chips/buttons
             chips = page.query_selector_all(
                 '.chip, button[class*="chip"], div[class*="chip"], '
-                '.chatbot-options button, .bot-options button, li[class*="option"]'
+                '.chatbot-options button, .bot-options button, li[class*="option"], '
+                '[data-qa="chip"], .quick-reply, span[class*="chip"]'
             )
             visible_chips = [c for c in chips if c.is_visible()]
 
-            if visible_chips:
-                bot_msg_el = page.query_selector_all('.msg_bot, .bot-msg, .message_text, [class*="botText"], div[class*="msg"]')
-                question_text = bot_msg_el[-1].inner_text().strip() if bot_msg_el else "Question"
+            # Filter chips to those having readable text
+            valid_chips = []
+            for c in visible_chips:
+                try:
+                    txt = c.inner_text().strip()
+                    if txt:
+                        valid_chips.append((c, txt))
+                except Exception:
+                    pass
 
-                chip_texts = [c.inner_text().strip() for c in visible_chips]
-                console.print(f"\n[bold cyan]Naukri Bot asks:[/] {question_text}")
+            # Resolve expected answer
+            # If question is about experience in ANY skill (Node.js, Python, Next.js, etc.) -> Target is 0
+            is_experience_q = any(k in question_clean.lower() for k in [
+                "experience", "years of", "how many years", "work exp", "years in", "years with", "how much experience"
+            ])
 
-                # Resolve answer via Profile / Memory / AI
-                answer = self._resolve_answer(question_text)
-                clicked_chip = False
+            if is_experience_q:
+                answer = "0"
+            else:
+                answer = self._resolve_answer(question_text) or "0"
 
-                if answer:
-                    for i, chip_el in enumerate(visible_chips):
-                        if answer.lower() in chip_texts[i].lower() or chip_texts[i].lower() in answer.lower():
-                            human_move_and_click(page, chip_el)
-                            console.print(f"[dim]Auto-selected option:[/] [green]{chip_texts[i]}[/]")
+            clicked_chip = False
+
+            if valid_chips:
+                # Experience matching: look for "0", "Fresher", "Less than 1", "0-1", "0 Year", "0 Years"
+                if is_experience_q:
+                    exp_zero_markers = ["0", "fresher", "less than 1", "0-1", "0 - 1", "< 1", "0 year", "0 years", "no experience", "nil", "none", "0 to 1"]
+                    for chip_el, c_text in valid_chips:
+                        c_lower = c_text.lower()
+                        if any(marker == c_lower or marker in c_lower for marker in exp_zero_markers):
+                            console.print(f"[dim]Auto-selected option:[/] [green]{c_text}[/]")
+                            try:
+                                chip_el.scroll_into_view_if_needed()
+                                human_delay(100, 250)
+                                chip_el.click(force=True)
+                                chip_el.evaluate("el => el.click()")
+                            except Exception:
+                                pass
                             clicked_chip = True
                             break
 
-                if not clicked_chip:
-                    # Select first logical positive chip or first option
-                    for i, chip_el in enumerate(visible_chips):
-                        if any(pos in chip_texts[i].lower() for pos in ["yes", "immediate", "0", "fresher", "jaipur"]):
-                            human_move_and_click(page, chip_el)
+                # General matching for other questions (Yes/No, Immediate, Location, CTC, etc.)
+                if not clicked_chip and answer:
+                    for chip_el, c_text in valid_chips:
+                        if answer.lower() in c_text.lower() or c_text.lower() in answer.lower():
+                            console.print(f"[dim]Auto-selected option:[/] [green]{c_text}[/]")
+                            try:
+                                chip_el.scroll_into_view_if_needed()
+                                human_delay(100, 250)
+                                chip_el.click(force=True)
+                                chip_el.evaluate("el => el.click()")
+                            except Exception:
+                                pass
                             clicked_chip = True
                             break
 
-                    if not clicked_chip and visible_chips:
-                        human_move_and_click(page, visible_chips[0])
+                # Fallback: click first positive or first available chip
+                if not clicked_chip and valid_chips:
+                    for chip_el, c_text in valid_chips:
+                        if any(pos in c_text.lower() for pos in ["yes", "immediate", "0", "fresher", "jaipur"]):
+                            console.print(f"[dim]Auto-selected option:[/] [green]{c_text}[/]")
+                            try:
+                                chip_el.scroll_into_view_if_needed()
+                                chip_el.click(force=True)
+                                chip_el.evaluate("el => el.click()")
+                            except Exception:
+                                pass
+                            clicked_chip = True
+                            break
 
-                human_delay(1200, 2000)
+                    if not clicked_chip:
+                        chip_el, c_text = valid_chips[0]
+                        console.print(f"[dim]Auto-selected option:[/] [green]{c_text}[/]")
+                        try:
+                            chip_el.scroll_into_view_if_needed()
+                            chip_el.click(force=True)
+                            chip_el.evaluate("el => el.click()")
+                        except Exception:
+                            pass
+                        clicked_chip = True
+
+                human_delay(1500, 2500)
                 continue
 
             # 2. Text input inside chatbot
@@ -407,17 +485,15 @@ class FormFiller:
                 page.query_selector('input[type="text"]')
             )
             if chat_input and chat_input.is_visible():
-                bot_msg_el = page.query_selector_all('.msg_bot, .bot-msg, .message_text, [class*="botText"]')
-                question_text = bot_msg_el[-1].inner_text().strip() if bot_msg_el else "Question"
-
-                answer = self._resolve_answer(question_text, chat_input)
-                if answer:
+                type_val = "0" if is_experience_q else (str(answer) if answer else "0")
+                console.print(f"[dim]Typing into chat:[/] [green]{type_val}[/]")
+                try:
                     chat_input.click()
-                    human_delay(150, 300)
+                    human_delay(100, 200)
                     chat_input.fill("")
-                    for char in str(answer):
-                        chat_input.type(char, delay=random.randint(25, 75))
-                    human_delay(200, 400)
+                    for char in type_val:
+                        chat_input.type(char, delay=random.randint(20, 60))
+                    human_delay(150, 300)
 
                     send_btn = (
                         page.query_selector('button.send-btn') or
@@ -429,6 +505,8 @@ class FormFiller:
                         human_move_and_click(page, send_btn)
                     else:
                         page.keyboard.press("Enter")
+                except Exception:
+                    pass
 
                 human_delay(1500, 2500)
                 continue
