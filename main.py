@@ -31,10 +31,12 @@ def load_config(path: str = "config.yaml") -> dict:
               help="Which platform to run (default: all)")
 @click.option("--dry-run", "-d", is_flag=True, default=False,
               help="Simulate applications without submitting")
+@click.option("--headed", "--visible", is_flag=True, default=False,
+              help="Show the browser window (default is background/headless)")
 @click.option("--config", "-c", default="config.yaml",
               help="Path to config file (default: config.yaml)")
 @click.pass_context
-def cli(ctx, platform, dry_run, config):
+def cli(ctx, platform, dry_run, headed, config):
     """🤖 Job Application Agent — auto-applies with the right resume per role."""
     if ctx.invoked_subcommand is not None:
         return
@@ -42,6 +44,11 @@ def cli(ctx, platform, dry_run, config):
     # Validate resumes exist
     cfg = load_config(config)
     _check_resumes(cfg)
+
+    if headed:
+        if "browser" not in cfg:
+            cfg["browser"] = {}
+        cfg["browser"]["headless"] = False
 
     platforms_filter = ["linkedin", "indeed", "naukri"] if platform == "all" else [platform]
 

@@ -184,7 +184,7 @@ roles:
 #  Browser settings
 # ─────────────────────────────────────────────
 browser:
-  headless: false          # Set true to run invisible in background
+  headless: true           # Runs invisibly in the background so you can work
   slow_mo_ms: 100          # Milliseconds between actions (human-like speed)
   timeout_ms: 60000        # Page load timeout
 

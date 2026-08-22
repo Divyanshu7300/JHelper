@@ -15,6 +15,7 @@ import urllib.parse
 import urllib.error
 from pathlib import Path
 from rich.console import Console
+from rich.markup import escape
 
 console = Console()
 
@@ -52,7 +53,7 @@ class TelegramBot:
                 if res_json.get("ok"):
                     return res_json.get("result")
         except Exception as e:
-            console.print(f"[dim]Telegram API call error ({endpoint}): {e}[/]")
+            console.print(f"[dim]Telegram API call error ({endpoint}): {escape(str(e))}[/]")
         return None
 
     def send_message(self, text: str, chat_id: Optional[str] = None, parse_mode: str = "Markdown", reply_markup: Optional[dict] = None) -> bool:
@@ -321,5 +322,5 @@ class TelegramBot:
                 console.print("\n[yellow]Stopping Telegram daemon...[/]")
                 break
             except Exception as e:
-                console.print(f"[dim]Telegram polling loop error: {e}[/]")
+                console.print(f"[dim]Telegram polling loop error: {escape(str(e))}[/]")
                 time.sleep(2)

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from playwright.sync_api import Page
 from rich.console import Console
+from rich.markup import escape
 
 from agent.stealth import (
     apply_stealth_scripts,
@@ -221,10 +222,10 @@ class IndeedAgent:
         )
 
         if not apply_btn:
-            console.print(f"[dim]Indeed:[/] No Indeed Apply button for '{job_title_text}', skipping.")
+            console.print(f"[dim]Indeed:[/] No Indeed Apply button for '{escape(job_title_text)}', skipping.")
             return 0
 
-        console.print(f"[yellow]Indeed:[/] Applying → [cyan]{job_title_text}[/] at [green]{company_text}[/] | Resume: [magenta]{Path(actual_resume).name}[/]")
+        console.print(f"[yellow]Indeed:[/] Applying → [cyan]{escape(job_title_text)}[/] at [green]{escape(company_text)}[/] | Resume: [magenta]{Path(actual_resume).name}[/]")
 
         if self.dry_run:
             self.tracker.log(self.PLATFORM, job_title_text, company_text, actual_role, actual_resume, "DRY_RUN", job_url)
@@ -236,7 +237,7 @@ class IndeedAgent:
             human_move_and_click(self.page, apply_btn)
             human_delay(2000, 3000)
         except Exception as e:
-            console.print(f"[red]Indeed:[/] Failed to click apply button: {e}")
+            console.print(f"[red]Indeed:[/] Failed to click apply button: {escape(str(e))}")
             return 0
 
         submitted = self._complete_indeed_apply(actual_resume)
@@ -244,10 +245,10 @@ class IndeedAgent:
         self.tracker.log(self.PLATFORM, job_title_text, company_text, actual_role, actual_resume, status, job_url)
 
         if submitted:
-            console.print(f"[green]Indeed:[/] ✅ Applied → {job_title_text}")
+            console.print(f"[green]Indeed:[/] ✅ Applied → {escape(job_title_text)}")
             return 1
         else:
-            console.print(f"[red]Indeed:[/] ❌ Failed → {job_title_text}")
+            console.print(f"[red]Indeed:[/] ❌ Failed → {escape(job_title_text)}")
             return 0
 
     def _complete_indeed_apply(self, resume_path: str) -> bool:

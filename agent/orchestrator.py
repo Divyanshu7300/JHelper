@@ -9,6 +9,7 @@ from playwright.sync_api import sync_playwright
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
+from rich.markup import escape
 
 from agent.resume_router import ResumeRouter
 from agent.tracker import ApplicationTracker
@@ -104,7 +105,7 @@ class Orchestrator:
                 except SystemExit:
                     results["linkedin"] = 0
                 except Exception as e:
-                    console.print(f"[red]LinkedIn crashed:[/] {e}")
+                    console.print(f"[red]LinkedIn crashed:[/] {escape(str(e))}")
                     results["linkedin"] = 0
                 finally:
                     ctx.close()
@@ -124,7 +125,7 @@ class Orchestrator:
                 except SystemExit:
                     results["indeed"] = 0
                 except Exception as e:
-                    console.print(f"[red]Indeed crashed:[/] {e}")
+                    console.print(f"[red]Indeed crashed:[/] {escape(str(e))}")
                     results["indeed"] = 0
                 finally:
                     ctx.close()
@@ -147,7 +148,7 @@ class Orchestrator:
                 except SystemExit:
                     results["naukri"] = 0
                 except Exception as e:
-                    console.print(f"[red]Naukri crashed:[/] {e}")
+                    console.print(f"[red]Naukri crashed:[/] {escape(str(e))}")
                     results["naukri"] = 0
                 finally:
                     ctx.close()

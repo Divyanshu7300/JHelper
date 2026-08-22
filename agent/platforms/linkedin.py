@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from playwright.sync_api import Page
 from rich.console import Console
+from rich.markup import escape
 
 from agent.stealth import (
     apply_stealth_scripts,
@@ -418,8 +419,8 @@ class LinkedInAgent:
             return 0
 
         console.print(
-            f"[blue]LinkedIn:[/] Applying → [cyan]{job_title_text}[/] "
-            f"at [green]{company_text}[/] | Resume: [magenta]{Path(actual_resume).name}[/]"
+            f"[blue]LinkedIn:[/] Applying → [cyan]{escape(job_title_text)}[/] "
+            f"at [green]{escape(company_text)}[/] | Resume: [magenta]{Path(actual_resume).name}[/]"
         )
 
         if self.dry_run:
@@ -432,7 +433,7 @@ class LinkedInAgent:
             human_move_and_click(self.page, easy_apply_btn)
             human_delay(1500, 2500)
         except Exception as e:
-            console.print(f"[red]LinkedIn:[/] Failed to click apply button: {e}")
+            console.print(f"[red]LinkedIn:[/] Failed to click apply button: {escape(str(e))}")
             return 0
 
         submitted = self._complete_easy_apply_modal(actual_resume)
@@ -440,10 +441,10 @@ class LinkedInAgent:
         self.tracker.log(self.PLATFORM, job_title_text, company_text, actual_role, actual_resume, status, job_url)
 
         if submitted:
-            console.print(f"[green]LinkedIn:[/] ✅ Applied → {job_title_text}")
+            console.print(f"[green]LinkedIn:[/] ✅ Applied → {escape(job_title_text)}")
             return 1
         else:
-            console.print(f"[red]LinkedIn:[/] ❌ Failed → {job_title_text}")
+            console.print(f"[red]LinkedIn:[/] ❌ Failed → {escape(job_title_text)}")
             return 0
 
     # ─────────────────────────────────────────────────────────────────────

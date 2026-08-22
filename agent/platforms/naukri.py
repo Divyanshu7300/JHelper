@@ -8,6 +8,7 @@ import urllib.parse
 from pathlib import Path
 from playwright.sync_api import Page
 from rich.console import Console
+from rich.markup import escape
 
 from agent.stealth import (
     apply_stealth_scripts,
@@ -381,8 +382,8 @@ class NaukriAgent:
             return 0
 
         console.print(
-            f"[red]Naukri:[/] Applying → [cyan]{job_title_text}[/] "
-            f"at [green]{company_text}[/] | Resume: [magenta]{Path(actual_resume).name}[/]"
+            f"[red]Naukri:[/] Applying → [cyan]{escape(job_title_text)}[/] "
+            f"at [green]{escape(company_text)}[/] | Resume: [magenta]{Path(actual_resume).name}[/]"
         )
 
         if self.dry_run:
@@ -433,10 +434,10 @@ class NaukriAgent:
                 pass
 
         if submitted:
-            console.print(f"[green]Naukri:[/] ✅ Applied → {job_title_text}")
+            console.print(f"[green]Naukri:[/] ✅ Applied → {escape(job_title_text)}")
             return 1
         else:
-            console.print(f"[red]Naukri:[/] ❌ Failed → {job_title_text}")
+            console.print(f"[red]Naukri:[/] ❌ Failed → {escape(job_title_text)}")
             return 0
 
     # ─────────────────────────────────────────────────────────────────────
